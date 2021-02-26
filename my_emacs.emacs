@@ -28,7 +28,7 @@
   (global-set-key (kbd "<mouse-5>") 'scroll-up-line)
   )
 
-;;; return from terminal within emacs with C-d twice
+;;; return from terminal within emacs with C-d
 (defun delete-char-or-kill-terminal-buffer (N &optional killflag)
   (interactive "p\nP")
   (if (string= (buffer-name) "*terminal*")
@@ -36,8 +36,40 @@
 (delete-char N killflag)))
 (global-set-key (kbd "C-d") 'delete-char-or-kill-terminal-buffer)
 
-; Enable visual feedback on selections
+;;; automatically kill buffer that shows up when closing term
+(defun oleh-term-exec-hook ()
+  (let* ((buff (current-buffer))
+         (proc (get-buffer-process buff)))
+    (set-process-sentinel
+     proc
+     `(lambda (process event)
+        (if (string= event "finished\n")
+            (kill-buffer ,buff))))))
+
+(add-hook 'term-exec-hook 'oleh-term-exec-hook)
+
+;;; paste into term using C-c C-y
+(eval-after-load "term"
+  '(define-key term-raw-map (kbd "C-c C-y") 'term-paste))
+
+;;; Enable visual feedback on selections
 (setq transient-mark-mode t)
 
 (show-paren-mode 1) ; turn on paren match highlighting
 (setq show-paren-style 'expression) ; highlight entire bracket expression
+
+;;; Without a selection, copy (M-w) or kill (C-w) the current line.
+(defadvice kill-region (before slick-cut activate compile)
+  "When called interactively with no active region, kill a single line instead."
+  (interactive
+   (if mark-active
+       (list (region-beginning) (region-end))
+     (list (line-beginning-position) (line-beginning-position 2)))))
+
+(defadvice kill-ring-save (before slick-copy activate compile)
+  "When called interactively with no active region, copy a single line instead."
+  (interactive
+   (if mark-active
+       (list (region-beginning) (region-end))
+     (message "Copied line")
+     (list (line-beginning-position) (line-beginning-position 2)))))
