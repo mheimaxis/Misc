@@ -59,17 +59,64 @@
 (setq show-paren-style 'expression) ; highlight entire bracket expression
 
 ;;; Without a selection, copy (M-w) or kill (C-w) the current line.
+;;; Is there a way to remove the newline character? I'm sure there is
 (defadvice kill-region (before slick-cut activate compile)
-  "When called interactively with no active region, kill a single line instead."
+  ; When called interactively with no active region, kill a single line instead.
   (interactive
    (if mark-active
        (list (region-beginning) (region-end))
      (list (line-beginning-position) (line-beginning-position 2)))))
 
 (defadvice kill-ring-save (before slick-copy activate compile)
-  "When called interactively with no active region, copy a single line instead."
+  ; When called interactively with no active region, copy a single line instead.
   (interactive
    (if mark-active
        (list (region-beginning) (region-end))
      (message "Copied line")
      (list (line-beginning-position) (line-beginning-position 2)))))
+
+(load-theme 'misterioso)
+
+;;; Auto indent yanked text
+(dolist (command '(yank yank-pop))
+   (eval `(defadvice ,command (after indent-region activate)
+            (and (not current-prefix-arg)
+                 (member major-mode '(emacs-lisp-mode lisp-mode
+                                                      clojure-mode    scheme-mode
+                                                      haskell-mode    ruby-mode
+                                                      rspec-mode      python-mode
+                                                      c-mode          c++-mode
+                                                      objc-mode       latex-mode
+                                                      plain-tex-mode))
+                 (let ((mark-even-if-inactive transient-mark-mode))
+                   (indent-region (region-beginning) (region-end) nil))))))
+
+(defun quick-copy-line ()
+  ; Copy the whole line that point is on and move to the beginning of the next line.
+  ; Consecutive calls to this command append each line to the kill-ring.
+  (interactive)
+  (let ((beg (line-beginning-position 1))
+        (end (line-beginning-position 2)))
+    (if (eq last-command 'quick-copy-line)
+        (kill-append (buffer-substring beg end) (< end beg))
+      (kill-new (buffer-substring beg end))))
+  (message "Quick copy line")
+  (beginning-of-line 2))
+
+(global-set-key (kbd "<f11>") 'quick-copy-line)
+
+(defun quick-cut-line ()
+  ; Cut the whole line that point is on.
+  ; Consecutive calls to this command append each line to the kill-ring.
+  (interactive)
+  (let ((beg (line-beginning-position 1))
+        (end (line-beginning-position 2)))
+    (if (eq last-command 'quick-cut-line)
+        (kill-append (buffer-substring beg end) (< end beg))
+      (kill-new (buffer-substring beg end)))
+    (delete-region beg end))
+  (message "Quick cut line")
+  (beginning-of-line 1)
+  (setq this-command 'quick-cut-line))
+
+(global-set-key (kbd "<f12>") 'quick-cut-line)
